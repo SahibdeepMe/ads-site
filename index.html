@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liquid Dream Radio Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Work+Sans:wght@300;400;600&display=swap');
+
+        :root {
+            --accent: #ff007a;
+            --glass: rgba(255, 255, 255, 0.45);
+            --glass-border: rgba(255, 255, 255, 0.7);
+        }
+
+        body {
+            font-family: 'Work Sans', sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            perspective: 2000px;
+            overflow: hidden;
+        }
+
+        .liquid-bg {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background: radial-gradient(circle at 50% 50%, #ffffff, #eef2ff);
+        }
+
+        .blob {
+            position: absolute;
+            width: 80vw;
+            height: 80vw;
+            filter: blur(80px);
+            border-radius: 50%;
+            opacity: 0.15;
+            animation: morph 15s linear infinite alternate;
+        }
+
+        @keyframes morph {
+            0% { border-radius: 40% 60% 60% 40%; transform: translate(0,0) scale(1); }
+            50% { border-radius: 60% 40% 40% 60%; transform: translate(10%, 5%) scale(1.1); }
+            100% { border-radius: 40% 60% 60% 40%; transform: translate(-5%, 10%) scale(1); }
+        }
+
+        .player-shell {
+            background: var(--glass);
+            backdrop-filter: blur(60px) saturate(200%);
+            -webkit-backdrop-filter: blur(60px) saturate(200%);
+            border: 1.5px solid var(--glass-border);
+            box-shadow: 0 50px 100px -20px rgba(0,0,0,0.1), inset 0 0 30px rgba(255,255,255,0.4);
+            border-radius: 50px;
+            width: 95%;
+            max-width: 1000px;
+            transform-style: preserve-3d;
+        }
+
+        .deck-container {
+            position: relative;
+            width: 280px;
+            height: 280px;
+            transform-style: preserve-3d;
+            margin-bottom: 2rem;
+        }
+
+        #vinyl {
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at center, #ff007a 0%, #ff007a 12%, transparent 13%),
+                repeating-radial-gradient(circle at center, #000 0, #000 1px, #1a1a1a 2px, #000 3px);
+            border-radius: 50%;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+            transform: translateZ(40px);
+            z-index: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #vinyl::before {
+            content: '';
+            position: absolute;
+            inset: -50%;
+            background: conic-gradient(
+                from 0deg,
+                transparent 0deg,
+                rgba(255,255,255,0.08) 45deg,
+                transparent 90deg,
+                rgba(255,255,255,0.1) 180deg,
+                transparent 270deg
+            );
+            z-index: 2;
+        }
+
+        .playing #vinyl {
+            animation: spinVinyl 3s linear infinite;
+        }
+
+        @keyframes spinVinyl {
+            from { transform: translateZ(40px) rotate(0deg); }
+            to { transform: translateZ(40px) rotate(360deg); }
+        }
+
+        .tonearm-stick {
+            position: absolute;
+            top: 40px;
+            right: 25px;
+            width: 110px; 
+            height: 8px;
+            background: #ffffff;
+            border-radius: 10px;
+            transform-origin: 100% 50%;
+            /* START AT REST: -60deg rotation and tilted downwards 14deg */
+            transform: rotate(var(--current-rot, -60deg)) translateZ(80px) rotateX(14deg); 
+            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 50;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            transform-style: preserve-3d;
+        }
+
+        .tonearm-stick::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: -4px;
+            width: 24px;
+            height: 16px;
+            background: #ffffff;
+            border-radius: 3px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        /* WAVE MOTION while playing */
+        .playing .tonearm-stick {
+            animation: fewFewMotion 3.5s infinite ease-in-out !important;
+        }
+
+        @keyframes fewFewMotion {
+            0%   { transform: rotate(var(--current-rot)) translateZ(80px) rotateX(0deg); } 
+            25%  { transform: rotate(var(--current-rot)) translateZ(80px) rotateX(-2.5deg); } 
+            50%  { transform: rotate(var(--current-rot)) translateZ(80px) rotateX(1.5deg); }  
+            75%  { transform: rotate(var(--current-rot)) translateZ(80px) rotateX(-1.5deg); } 
+            100% { transform: rotate(var(--current-rot)) translateZ(80px) rotateX(0deg); } 
+        }
+
+        /* LIFTING/TRANSITION STATE (UP) */
+        .lifting .tonearm-stick, .lowering .tonearm-stick {
+            transform: rotate(var(--current-rot)) translateZ(120px) rotateX(-15deg) !important;
+            transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1) !important;
+            animation: none !important;
+        }
+
+        /* STATION CHANGE: Quick lift high */
+        .nudge .tonearm-stick {
+            transform: rotate(calc(var(--current-rot) - 15deg)) translateZ(130px) rotateX(-12deg) !important;
+            transition: transform 0.4s ease-out !important;
+            animation: none !important;
+        }
+
+        .play-btn {
+            width: 80px;
+            height: 80px;
+            background: #111;
+            color: #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .playing .play-btn {
+            background: var(--accent);
+        }
+
+        .station-item {
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            padding: 15px 20px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid transparent;
+        }
+
+        .station-item:hover {
+            background: rgba(255,255,255,0.4);
+        }
+
+        .station-item.active {
+            background: white;
+            border: 1px solid var(--accent);
+            box-shadow: 0 5px 15px rgba(255, 0, 122, 0.1);
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            height: 6px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 10px;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            background: white;
+            border-radius: 50%;
+            margin-top: -7px;
+            border: 2px solid var(--accent);
+        }
+
+        .syncopate { font-family: 'Syncopate', sans-serif; letter-spacing: 3px; }
+        
+        .custom-scroll::-webkit-scrollbar { width: 5px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="liquid-bg">
+        <div class="blob" style="top: -10%; left: -5%; background: #ff007a;"></div>
+        <div class="blob" style="bottom: -15%; right: -5%; background: #7000ff;"></div>
+    </div>
+
+    <div id="player-main" class="player-shell overflow-hidden">
+        <div class="flex flex-col md:flex-row">
+            <div class="w-full md:w-1/2 p-10 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-black/5">
+                <div class="deck-container">
+                    <div class="tonearm-stick" id="stick" style="--current-rot: -60deg"></div>
+                    <div id="vinyl">
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <div class="w-24 h-24 bg-white/5 rounded-full border-[1px] border-white/10"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center w-full mt-4">
+                    <p class="syncopate text-[10px] text-pink-500 font-bold mb-2">Live Radio</p>
+                    <h1 id="current-name" class="text-2xl md:text-3xl font-bold text-slate-900 mb-8 truncate w-full px-4">Select a Station</h1>
+                    
+                    <div class="flex items-center justify-center gap-8 mb-10">
+                        <button onclick="prevStation()" class="text-slate-400 hover:text-pink-500"><i class="fas fa-backward"></i></button>
+                        <button onclick="togglePlay()" class="play-btn"><i id="play-icon" class="fas fa-play ml-1"></i></button>
+                        <button onclick="nextStation()" class="text-slate-400 hover:text-pink-500"><i class="fas fa-forward"></i></button>
+                    </div>
+
+                    <div class="flex items-center gap-4 px-10">
+                        <i class="fas fa-volume-down text-slate-300"></i>
+                        <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.7">
+                        <i class="fas fa-volume-up text-pink-500"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="w-full md:w-1/2 p-8 md:p-12">
+                <h2 class="syncopate text-[10px] font-bold text-slate-400 mb-8">Stations Hub</h2>
+                <div id="station-list" class="space-y-3 overflow-y-auto max-h-[450px] pr-2 custom-scroll"></div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="audio-engine"></audio>
+
+    <script>
+        const stations = [
+            { name: "AIR Vividh Bharati", url: "https://air.pc.cdn.bitgravity.com/air/live/pbaudio001/playlist.m3u8" },
+            { name: "Hot Punjabi Radio", url: "https://dz1aqwz3bmbil.cloudfront.net/mgmradio.m3u8" },
+            { name: "Bombay Beats Radio", url: "https://strmreg.1.fm/bombaybeats_mobile_mp3" },
+            { name: "Classic 90's Hits", url: "https://streaming.webhostnepal.com/8012/stream" },
+            { name: "Jaipur Radio Live", url: "https://d2jb21f28vbv8v.cloudfront.net/jaipurradio.m3u8" },
+            { name: "BBC Asian Network", url: "https://as-hls-ww.live.cf.md.bbci.co.uk/pool_22108647/live/ww/bbc_asian_network/bbc_asian_network.isml/bbc_asian_network-audio%3d96000.norewind.m3u8" },
+            { name: "Bol Punjab Radio", url: "https://bolpunjabi-ekamsoftware.radioca.st//stream" },
+            { name: "Radio Haryanvi", url: "https://listen.weareharyanvi.com/listen" },
+            { name: "Kishore Kumar Mix", url: "https://stream-165.zeno.fm/pg6rqp8ztm0uv" },
+            { name: "Radio Dhol Beats", url: "https://radio.dholradio.in/radio" },
+            { name: "Kadak FM Live", url: "https://admn-radio-cdn-lb.starzplayarabia.com/out/v1/admn_radio_enc/kadak/kadak_hls_nd/index_kadakfm_audio_enc_ara.m3u8" }
+        ];
+
+        const audio = document.getElementById('audio-engine');
+        const playIcon = document.getElementById('play-icon');
+        const playerMain = document.getElementById('player-main');
+        const stationList = document.getElementById('station-list');
+        const nameDisplay = document.getElementById('current-name');
+        const stick = document.getElementById('stick');
+
+        let isPlaying = false;
+        let currentIndex = -1;
+        let currentRotation = -60;
+
+        function render() {
+            stationList.innerHTML = stations.map((s, idx) => `
+                <div class="station-item ${currentIndex === idx ? 'active' : ''}" onclick="selectStation(${idx})">
+                    <span class="font-semibold text-sm text-slate-700">${s.name}</span>
+                </div>
+            `).join('');
+        }
+
+        async function selectStation(index) {
+            if (currentIndex === index && isPlaying) return;
+            
+            playerMain.classList.remove('playing');
+            playerMain.classList.add('nudge');
+            
+            currentIndex = index;
+            nameDisplay.innerText = stations[index].name;
+            audio.src = stations[index].url;
+            
+            if (currentRotation <= -60) {
+                currentRotation = -14; 
+            } else {
+                currentRotation += 1.5; 
+                if (currentRotation > -2) currentRotation = -14; 
+            }
+            
+            stick.style.setProperty('--current-rot', `${currentRotation}deg`);
+            
+            await new Promise(r => setTimeout(r, 600)); 
+            playerMain.classList.remove('nudge');
+
+            audio.play().then(() => {
+                isPlaying = true;
+                playerMain.classList.add('playing');
+                updateUI();
+            }).catch(() => {
+                isPlaying = false;
+                updateUI();
+            });
+            render();
+        }
+
+        window.togglePlay = async () => {
+            if (currentIndex === -1) { selectStation(0); return; }
+            
+            if (isPlaying) {
+                // ANIMATED PAUSE
+                audio.pause();
+                isPlaying = false;
+                
+                // Lift first
+                playerMain.classList.remove('playing');
+                playerMain.classList.add('lowering'); 
+                
+                await new Promise(r => setTimeout(r, 400));
+                
+                // Move to cradle while up
+                currentRotation = -60;
+                stick.style.setProperty('--current-rot', '-60deg');
+                
+                await new Promise(r => setTimeout(r, 600));
+                
+                // Final drop
+                playerMain.classList.remove('lowering');
+                updateUI();
+            } else {
+                // ANIMATED PLAY
+                playerMain.classList.add('lifting');
+                
+                if(currentRotation === -60) currentRotation = -14;
+                stick.style.setProperty('--current-rot', `${currentRotation}deg`);
+
+                await new Promise(r => setTimeout(r, 600));
+                
+                playerMain.classList.remove('lifting');
+                audio.play().then(() => {
+                    isPlaying = true;
+                    playerMain.classList.add('playing');
+                    updateUI();
+                });
+            }
+        };
+
+        window.nextStation = () => selectStation((currentIndex + 1) % stations.length);
+        window.prevStation = () => selectStation((currentIndex - 1 + stations.length) % stations.length);
+
+        function updateUI() {
+            playIcon.className = isPlaying ? 'fas fa-pause' : 'fas fa-play ml-1';
+            
+            if (isPlaying) {
+                playerMain.classList.remove('lifting', 'lowering');
+                playerMain.classList.add('playing');
+                stick.style.transform = ''; 
+            } else {
+                // If not in middle of transition, force rest
+                if (!playerMain.classList.contains('lowering')) {
+                    playerMain.classList.remove('playing', 'nudge', 'lifting');
+                    currentRotation = -60;
+                    stick.style.setProperty('--current-rot', '-60deg');
+                    stick.style.transform = `rotate(-60deg) translateZ(80px) rotateX(14deg)`;
+                }
+            }
+        }
+
+        document.getElementById('volume-slider').addEventListener('input', (e) => audio.volume = e.target.value);
+        
+        render();
+        updateUI();
+    </script>
+</body>
+</html>
